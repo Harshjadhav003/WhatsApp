@@ -1,5 +1,7 @@
 const User = require("../models/user.model");
 const bcrypt = require("bcryptjs");
+require("dotenv").config();
+const jwt = require("jsonwebtoken");
 
 
 // Register Controller
@@ -72,6 +74,7 @@ const login = async (req, res) => {
             });
         }
 
+        
         // Step 2: Find User
         const user = await User.findOne({ email });
 
@@ -91,16 +94,22 @@ const login = async (req, res) => {
                 message: "Invalid Credentials"
             });
         }
+        const token = jwt.sign(
+        {
+            userId:user._id,
+        },
+        process.env.JWT_SECRET,
+        {
+            expiresIn:"7d",
+        }
+        );
+
 
         // Step 4: Login Success
         return res.status(200).json({
             success: true,
             message: "Login Successful",
-            user: {
-                _id: user._id,
-                name: user.name,
-                email: user.email
-            }
+            token
         });
 
     } catch (error) {
