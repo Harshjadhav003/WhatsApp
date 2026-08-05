@@ -18,6 +18,13 @@ const authMiddleware = (req,res,next)=>{
     }
 
     const token = authHeader.split(" ")[1];
+
+    if (!token) {
+    return res.status(401).json({
+        success: false,
+        message: "Token missing"
+    });
+}
     try {
 
     const decoded = jwt.verify(
@@ -25,11 +32,11 @@ const authMiddleware = (req,res,next)=>{
         process.env.JWT_SECRET
     );
 
+console.log(decoded);
+
 req.user = decoded;
 
 next();
-
-    console.log(decoded);
 
 } catch (error) {
 
@@ -40,12 +47,6 @@ next();
 
 }
 
-if (!token) {
-    return res.status(401).json({
-        success: false,
-        message: "Token missing"
-    });
-}
-    console.log(authHeader);
+
 };
 module.exports = authMiddleware ;
