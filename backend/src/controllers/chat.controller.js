@@ -63,6 +63,7 @@ const createChat = async (req, res) => {
             ],
             isGroupChat: false
         });
+        await chat.populate("participants", "name email");
 
         // Step 7: Send response
         return res.status(201).json({
