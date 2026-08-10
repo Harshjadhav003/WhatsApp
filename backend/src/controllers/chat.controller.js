@@ -3,12 +3,36 @@ const Chat = require("../models/chat.model");
 
 
 // Get All Chats
+// Get All Chats
 const getChats = async (req, res) => {
-    res.json({
-        message: "All Chats"
-    });
-};
+    try {
+        const chats = await Chat.find({
+            participants: req.user.userId
+        });
 
+        
+
+        await Promise.all(
+            chats.map(chat =>
+                chat.populate("participants", "name email")
+            )
+        );
+
+        return res.status(200).json({
+            success: true,
+            message: "Chats fetched successfully",
+            chats
+        });
+
+    } catch (error) {
+        console.error(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Internal Server Error"
+        });
+    }
+};
 
 // Create Chat
 const createChat = async (req, res) => {
@@ -35,6 +59,12 @@ const createChat = async (req, res) => {
             });
         }
 
+        if (req.user.userId === userId) {
+        return res.status(400).json({
+        success: false,
+        message: "You cannot create a chat with yourself"
+    });
+}
         // Step 4: Check if chat already exists
         const existingChat = await Chat.findOne({
             participants: {
