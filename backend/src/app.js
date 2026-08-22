@@ -1,4 +1,5 @@
 const express = require("express");
+require("dotenv").config();
 
 const authRoutes = require("./routes/auth.routes");
 const chatRoutes = require("./routes/chat.routes");
@@ -18,7 +19,7 @@ app.use("/api/message", messageRoutes);
 app.get("/", (req, res) => {
     res.json({
         success: true,
-        message: "WhatsApp Backend Running 🚀"
+        message: "WhatsApp Backend Running "
     });
 });
 
