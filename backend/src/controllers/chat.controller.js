@@ -1,22 +1,21 @@
 const User = require("../models/user.model");
 const Chat = require("../models/chat.model");
 
-
-// Get All Chats
 // Get All Chats
 const getChats = async (req, res) => {
     try {
         const chats = await Chat.find({
             participants: req.user.userId
-        });
-
-        
-
-        await Promise.all(
-            chats.map(chat =>
-                chat.populate("participants", "name email")
-            )
-        );
+        })
+        .populate("participants", "name email")
+        .populate({
+            path: "latestMessage",
+            populate: {
+                path: "sender",
+                select: "name email"
+            }
+        })
+        .sort({ updatedAt: -1 });
 
         return res.status(200).json({
             success: true,
@@ -33,6 +32,7 @@ const getChats = async (req, res) => {
         });
     }
 };
+
 
 // Create Chat
 const createChat = async (req, res) => {
@@ -59,13 +59,15 @@ const createChat = async (req, res) => {
             });
         }
 
+        // Step 4: Prevent self-chat
         if (req.user.userId === userId) {
-        return res.status(400).json({
-        success: false,
-        message: "You cannot create a chat with yourself"
-    });
-}
-        // Step 4: Check if chat already exists
+            return res.status(400).json({
+                success: false,
+                message: "You cannot create a chat with yourself"
+            });
+        }
+
+        // Step 5: Check if chat already exists
         const existingChat = await Chat.findOne({
             participants: {
                 $all: [
@@ -74,9 +76,10 @@ const createChat = async (req, res) => {
                 ]
             },
             isGroupChat: false
-        }).populate("participants", "name email");
+        })
+        .populate("participants", "name email");
 
-        // Step 5: If chat already exists
+        // Step 6: If chat already exists
         if (existingChat) {
             return res.status(200).json({
                 success: true,
@@ -85,7 +88,7 @@ const createChat = async (req, res) => {
             });
         }
 
-        // Step 6: Create new chat
+        // Step 7: Create new chat
         const chat = await Chat.create({
             participants: [
                 req.user.userId,
@@ -93,9 +96,11 @@ const createChat = async (req, res) => {
             ],
             isGroupChat: false
         });
+
+        // Step 8: Populate participants
         await chat.populate("participants", "name email");
 
-        // Step 7: Send response
+        // Step 9: Send response
         return res.status(201).json({
             success: true,
             message: "Chat created successfully",
