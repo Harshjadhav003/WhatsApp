@@ -1,4 +1,5 @@
 require("dotenv").config();
+const jwt = require("jsonwebtoken");
 const { Server } = require("socket.io");
 
 const connectDB= require("./src/database/db.js");
@@ -13,8 +14,20 @@ const io = new Server(server, {
     }
 });
 
+io.use((socket, next) => {
+    const token = socket.handshake.auth.token;
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        socket.user = decoded;
+        next();
+    } catch (error) {
+        next(new Error("Authentication error"));
+    }
+});
+
 io.on("connection", (socket) => {
     console.log("New socket connected:", socket.id);
+    console.log("Authenticated user:", socket.user);
 });
 
 const PORT = process.env.PORT || 5000 ;
