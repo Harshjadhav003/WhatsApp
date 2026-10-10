@@ -24,10 +24,18 @@ io.use((socket, next) => {
         next(new Error("Authentication error"));
     }
 });
-
 io.on("connection", (socket) => {
-    console.log("New socket connected:", socket.id);
-    console.log("Authenticated user:", socket.user);
+  console.log("New socket connected:", socket.id);
+  console.log("Authenticated user:", socket.user);
+
+  socket.join(socket.user.userId);
+
+  console.log("Joined room:", socket.user.userId);
+  console.log("Socket rooms:", [...socket.rooms]);
+
+  socket.on("test-message", (data) => {
+    io.to(socket.user.userId).emit("newMessage", data);
+  });
 });
 
 const PORT = process.env.PORT || 5000 ;
