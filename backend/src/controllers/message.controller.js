@@ -79,6 +79,29 @@ const sendMessage = async (req, res) => {
         chat.latestMessage = message._id;
         await chat.save();
 
+
+const io = req.app.get("io");
+
+console.log(
+    "Chat participants:",
+    chat.participants.map(id => id.toString())
+);
+
+const recipientId = chat.participants.find(
+    participant => participant.toString() !== req.user.userId
+);
+
+console.log("Sender ID:", req.user.userId);
+console.log("Recipient ID:", recipientId?.toString());
+
+if (io && recipientId) {
+    const populatedMessage = await Message.findById(message._id)
+        .populate("sender", "name email");
+
+    io.to(recipientId.toString()).emit("newMessage", populatedMessage);
+}
+
+
         return res.status(201).json({
             success: true,
             message: "Message sent successfully",
