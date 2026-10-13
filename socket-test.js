@@ -2,7 +2,7 @@ const { io } = require("socket.io-client");
 
 const socket = io("http://localhost:5000", {
   auth: {
-    token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2YWNjZTc4NWQwNDY0YzQwZDI1NmQxYTYiLCJpYXQiOjE3OTE4MTM1NzIsImV4cCI6MTc5MjQxODM3Mn0.OcZwTlOJR0TVGvODGGyuQEqkgarffhNrH8sONaWK58o",
+    token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2YWNjZTg2Y2QwNDY0YzQwZDI1NmQxYTciLCJpYXQiOjE3OTE5MDk1MDAsImV4cCI6MTc5MjUxNDMwMH0.dXyvmAvLIhh25qqsixry0E7I0ciuhkocJShRRT9VYac",
   },
 });
 
@@ -14,6 +14,10 @@ socket.on("connect", () => {
 
 socket.on("newMessage", (data) => {
   console.log("Received actual chat message:", data);
+});
+
+socket.on("messagesRead", (data) => {
+    console.log("Read receipt received:", data);
 });
 
 socket.on("connect_error", (error) => {
