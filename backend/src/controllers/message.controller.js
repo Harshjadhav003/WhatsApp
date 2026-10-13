@@ -118,7 +118,89 @@ if (io && recipientId) {
     }
 };
 
+const markMessagesAsRead = async (req, res) => {
+    try {
+        const { chatId } = req.params;
+        const userId = req.user.userId;
+
+        const chat = await Chat.findById(chatId);
+
+        if (!chat) {
+            return res.status(404).json({
+                success: false,
+                message: "Chat not found"
+            });
+        }
+
+        const isParticipant = chat.participants.some(
+            participant => participant.toString() === userId
+        );
+
+        if (!isParticipant) {
+            return res.status(403).json({
+                success: false,
+                message: "You are not a participant of this chat"
+            });
+        }
+
+        const unreadMessages = await Message.find({
+            chat: chatId,
+            sender: { $ne: userId },
+            readBy: { $ne: userId }
+        }).select("_id");
+
+        if (unreadMessages.length === 0) {
+            return res.status(200).json({
+                success: true,
+                message: "No unread messages",
+                modifiedCount: 0
+            });
+        }
+
+        await Message.updateMany(
+            {
+                _id: { $in: unreadMessages.map(message => message._id) }
+            },
+            {
+                $addToSet: { readBy: userId }
+            }
+        );
+
+        const io = req.app.get("io");
+
+        if (io) {
+            const otherParticipants = chat.participants.filter(
+                participant => participant.toString() !== userId
+            );
+
+            otherParticipants.forEach(participant => {
+                io.to(participant.toString()).emit("messagesRead", {
+                    chatId,
+                    readBy: userId,
+                    messageIds: unreadMessages.map(message => message._id)
+                });
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Messages marked as read",
+            modifiedCount: unreadMessages.length
+        });
+
+    } catch (error) {
+        console.error(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Internal Server Error"
+        });
+    }
+};
+
+
 module.exports = {
     getMessages,
-    sendMessage
+    sendMessage,
+    markMessagesAsRead
 };
