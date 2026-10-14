@@ -1,42 +1,61 @@
 const Chat = require("../models/chat.model");
 const Message = require("../models/message.model")
 
+
 const getMessages = async (req, res) => {
+    try {
+        const { chatId } = req.params;
 
-    const {chatId} = req.params;
+        if (!chatId || !/^[0-9a-fA-F]{24}$/.test(chatId)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid chat ID"
+            });
+        }
 
-    const chat = await Chat.findById(chatId);
+        const chat = await Chat.findById(chatId);
 
-    if(!chat){
-        return res.status(404).json({
-            success:false ,
-            message:"Chat not found"
-        });
-    }
+        if (!chat) {
+            return res.status(404).json({
+                success: false,
+                message: "Chat not found"
+            });
+        }
 
-    const isParticipant = chat.participants.some(
-    participant => participant.toString() === req.user.userId
-);
+        const isParticipant = chat.participants.some(
+            participant =>
+                participant.toString() === req.user.userId
+        );
 
-       if (!isParticipant) {
+        if (!isParticipant) {
             return res.status(403).json({
                 success: false,
                 message: "You are not a participant of this chat"
             });
         }
 
-const messages = await Message.find({
-    chat: chatId
-}).populate("sender", "name email");
+        const messages = await Message.find({
+            chat: chatId
+        })
+            .sort({ createdAt: 1 })
+            .populate("sender", "name email");
 
+        return res.status(200).json({
+            success: true,
+            message: "Messages fetched successfully",
+            messages
+        });
 
+    } catch (error) {
+        console.error("Get messages error:", error);
 
-  return res.status(200).json({
-    success: true,
-    message: "Messages fetched successfully",
-    messages
-});
+        return res.status(500).json({
+            success: false,
+            message: "Internal Server Error"
+        });
+    }
 };
+
 
 
 const sendMessage = async (req, res) => {
@@ -194,7 +213,7 @@ const markMessagesAsRead = async (req, res) => {
         return res.status(500).json({
             success: false,
             message: "Internal Server Error"
-        });
+        });``
     }
 };
 
