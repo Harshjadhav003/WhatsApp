@@ -101,17 +101,9 @@ const sendMessage = async (req, res) => {
 
 const io = req.app.get("io");
 
-console.log(
-    "Chat participants:",
-    chat.participants.map(id => id.toString())
-);
-
 const recipientId = chat.participants.find(
     participant => participant.toString() !== req.user.userId
 );
-
-console.log("Sender ID:", req.user.userId);
-console.log("Recipient ID:", recipientId?.toString());
 
 if (io && recipientId) {
     const populatedMessage = await Message.findById(message._id)
