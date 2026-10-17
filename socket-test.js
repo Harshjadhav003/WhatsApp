@@ -1,9 +1,10 @@
+require("dotenv").config();
 const { io } = require("socket.io-client");
 
 const socket = io("http://localhost:5000", {
   auth: {
-    token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2YWNjZTg2Y2QwNDY0YzQwZDI1NmQxYTciLCJpYXQiOjE3OTE5MDk1MDAsImV4cCI6MTc5MjUxNDMwMH0.dXyvmAvLIhh25qqsixry0E7I0ciuhkocJShRRT9VYac",
-  },
+    token: process.env.SOCKET_TEST_TOKEN
+  }
 });
 
 socket.on("connect", () => {
