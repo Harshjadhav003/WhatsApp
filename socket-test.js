@@ -1,5 +1,13 @@
-require("dotenv").config();
+require("dotenv").config({
+  path: "./.env"
+});
+
 const { io } = require("socket.io-client");
+
+console.log(
+  "Test token loaded:",
+  Boolean(process.env.SOCKET_TEST_TOKEN)
+);
 
 const socket = io("http://localhost:5000", {
   auth: {
@@ -9,8 +17,6 @@ const socket = io("http://localhost:5000", {
 
 socket.on("connect", () => {
   console.log("Connected to server:", socket.id);
-
-
 });
 
 socket.on("newMessage", (data) => {
@@ -18,7 +24,15 @@ socket.on("newMessage", (data) => {
 });
 
 socket.on("messagesRead", (data) => {
-    console.log("Read receipt received:", data);
+  console.log("Read receipt received:", data);
+});
+
+socket.on("userOnline", (data) => {
+  console.log("User came online:", data.userId);
+});
+
+socket.on("userOffline", (data) => {
+  console.log("User went offline:", data.userId);
 });
 
 socket.on("connect_error", (error) => {
