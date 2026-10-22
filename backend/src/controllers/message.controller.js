@@ -1,11 +1,12 @@
 const Chat = require("../models/chat.model");
-const Message = require("../models/message.model")
+const Message = require("../models/message.model");
 
-
+// Fetch all messages for a chat
 const getMessages = async (req, res) => {
     try {
         const { chatId } = req.params;
 
+        // Validate chat ID
         if (!chatId || !/^[0-9a-fA-F]{24}$/.test(chatId)) {
             return res.status(400).json({
                 success: false,
@@ -22,6 +23,7 @@ const getMessages = async (req, res) => {
             });
         }
 
+        // Verify chat participation
         const isParticipant = chat.participants.some(
             participant =>
                 participant.toString() === req.user.userId
@@ -47,7 +49,7 @@ const getMessages = async (req, res) => {
         });
 
     } catch (error) {
-        console.error("Get messages error:", error);
+        console.error("Get messages error:", error.message);
 
         return res.status(500).json({
             success: false,
@@ -57,15 +59,29 @@ const getMessages = async (req, res) => {
 };
 
 
-
+// Send a message and notify the recipient through Socket.IO
 const sendMessage = async (req, res) => {
     try {
         const { chatId, content } = req.body;
 
-        if (!chatId || !content) {
+        // Validate chat ID before querying MongoDB
+        if (!chatId || typeof chatId !== "string" ||
+            !/^[0-9a-fA-F]{24}$/.test(chatId)) {
             return res.status(400).json({
                 success: false,
-                message: "Chat ID and Content are required"
+                message: "Invalid chat ID"
+            });
+        }
+
+        // Validate message content
+        if (
+            typeof content !== "string" ||
+            !content.trim() ||
+            content.trim().length > 5000
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "Content must be a non-empty string with at most 5000 characters"
             });
         }
 
@@ -78,8 +94,10 @@ const sendMessage = async (req, res) => {
             });
         }
 
+        // Only chat participants can send messages
         const isParticipant = chat.participants.some(
-            participant => participant.toString() === req.user.userId
+            participant =>
+                participant.toString() === req.user.userId
         );
 
         if (!isParticipant) {
@@ -92,26 +110,30 @@ const sendMessage = async (req, res) => {
         const message = await Message.create({
             sender: req.user.userId,
             chat: chatId,
-            content: content
+            content: content.trim()
         });
 
+        // Update the latest message for this chat
         chat.latestMessage = message._id;
         await chat.save();
 
+        // Notify the other participant in real time
+        const io = req.app.get("io");
 
-const io = req.app.get("io");
+        const recipientId = chat.participants.find(
+            participant =>
+                participant.toString() !== req.user.userId
+        );
 
-const recipientId = chat.participants.find(
-    participant => participant.toString() !== req.user.userId
-);
+        if (io && recipientId) {
+            const populatedMessage = await Message.findById(message._id)
+                .populate("sender", "name email");
 
-if (io && recipientId) {
-    const populatedMessage = await Message.findById(message._id)
-        .populate("sender", "name email");
-
-    io.to(recipientId.toString()).emit("newMessage", populatedMessage);
-}
-
+            io.to(recipientId.toString()).emit(
+                "newMessage",
+                populatedMessage
+            );
+        }
 
         return res.status(201).json({
             success: true,
@@ -120,7 +142,7 @@ if (io && recipientId) {
         });
 
     } catch (error) {
-        console.error(error);
+        console.error("Send message error:", error.message);
 
         return res.status(500).json({
             success: false,
@@ -129,10 +151,20 @@ if (io && recipientId) {
     }
 };
 
+
+// Mark incoming messages as read
 const markMessagesAsRead = async (req, res) => {
     try {
         const { chatId } = req.params;
         const userId = req.user.userId;
+
+        // Validate chat ID before querying MongoDB
+        if (!chatId || !/^[0-9a-fA-F]{24}$/.test(chatId)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid chat ID"
+            });
+        }
 
         const chat = await Chat.findById(chatId);
 
@@ -143,8 +175,10 @@ const markMessagesAsRead = async (req, res) => {
             });
         }
 
+        // Only chat participants can mark messages as read
         const isParticipant = chat.participants.some(
-            participant => participant.toString() === userId
+            participant =>
+                participant.toString() === userId
         );
 
         if (!isParticipant) {
@@ -154,6 +188,7 @@ const markMessagesAsRead = async (req, res) => {
             });
         }
 
+        // Find messages sent by others that this user has not read
         const unreadMessages = await Message.find({
             chat: chatId,
             sender: { $ne: userId },
@@ -168,27 +203,33 @@ const markMessagesAsRead = async (req, res) => {
             });
         }
 
+        const messageIds = unreadMessages.map(
+            message => message._id
+        );
+
         await Message.updateMany(
             {
-                _id: { $in: unreadMessages.map(message => message._id) }
+                _id: { $in: messageIds }
             },
             {
                 $addToSet: { readBy: userId }
             }
         );
 
+        // Notify the other participants about the read receipt
         const io = req.app.get("io");
 
         if (io) {
             const otherParticipants = chat.participants.filter(
-                participant => participant.toString() !== userId
+                participant =>
+                    participant.toString() !== userId
             );
 
             otherParticipants.forEach(participant => {
                 io.to(participant.toString()).emit("messagesRead", {
                     chatId,
                     readBy: userId,
-                    messageIds: unreadMessages.map(message => message._id)
+                    messageIds
                 });
             });
         }
@@ -200,12 +241,12 @@ const markMessagesAsRead = async (req, res) => {
         });
 
     } catch (error) {
-        console.error(error);
+        console.error("Mark messages as read error:", error.message);
 
         return res.status(500).json({
             success: false,
             message: "Internal Server Error"
-        });``
+        });
     }
 };
 
