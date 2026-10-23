@@ -17,12 +17,21 @@ function Conversation({
   message,
   setMessage,
   sending,
+  onBack,
 }) {
   return (
     <section className="conversation">
       {selectedChat ? (
         <>
           <header className="conversation-header">
+            <button
+  type="button"
+  className="mobile-back-button"
+  onClick={onBack}
+  aria-label="Back to chats"
+>
+  ‹
+</button>
             <Avatar
               name={getChatName(selectedChat)}
               online={onlineUsers.has(
@@ -57,9 +66,13 @@ function Conversation({
               Messages are loaded from your WhatsApp backend.
             </div>
 
-            {loadingMessages && (
-              <p className="empty-search">Loading messages...</p>
-            )}
+            {!loadingMessages && messages.length === 0 && (
+  <div className="messages-empty-state">
+    <span className="messages-empty-icon">✉</span>
+    <strong>No messages yet</strong>
+    <p>Say hello to start the conversation.</p>
+  </div>
+)}
 
             {!loadingMessages &&
               messages.map((item) => {
@@ -135,10 +148,25 @@ function Conversation({
         </>
       ) : (
         <div className="empty-conversation">
-          {loadingChats
-            ? "Loading your chats..."
-            : "No chat selected. Create a chat with another user first."}
-        </div>
+  {loadingChats ? (
+    <div className="empty-state">
+      <div className="empty-state-icon loading-icon">◌</div>
+      <h2>Loading your chats</h2>
+      <p>Getting your conversations ready...</p>
+    </div>
+  ) : (
+    <div className="empty-state">
+      <div className="empty-state-icon">☏</div>
+      <h2>Keep your conversations close</h2>
+      <p>
+        Select a chat from the sidebar or start a new conversation.
+      </p>
+      <span className="empty-state-note">
+        Your conversations, all in one place.
+      </span>
+    </div>
+  )}
+</div>
       )}
     </section>
   );
