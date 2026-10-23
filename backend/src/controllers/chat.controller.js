@@ -34,6 +34,56 @@ const getChats = async (req, res) => {
 };
 
 
+ // Search registered users
+const searchUsers = async (req, res) => {
+    try {
+        const query =
+            typeof req.query.search === "string"
+                ? req.query.search.trim()
+                : "";
+
+ if (query.length < 2) {
+    return res.status(200).json({
+        success: true,
+        users: []
+    });
+}
+
+if (query.length > 50) {
+    return res.status(400).json({
+        success: false,
+        message: "Search query is too long"
+    });
+}
+
+const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+        const users = await User.find({
+            _id: { $ne: req.user.userId },
+            $or: [
+               { name: { $regex: escapedQuery, $options: "i" } },
+{ email: { $regex: escapedQuery, $options: "i" } }
+            ]
+        })
+            .select("name email profilePic about")
+            .limit(20);
+
+        return res.status(200).json({
+            success: true,
+            users
+        });
+    } catch (error) {
+        console.error("Search users error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Could not search users"
+        });
+    }
+};
+
+
+
 // Create Chat
 const createChat = async (req, res) => {
     try {
@@ -121,5 +171,6 @@ const createChat = async (req, res) => {
 
 module.exports = {
     getChats,
-    createChat
+    createChat,
+    searchUsers
 };
