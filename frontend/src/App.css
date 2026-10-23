@@ -785,3 +785,37 @@
     transition: none;
   }
 }
+
+/* Desktop sidebar width */
+@media (min-width: 681px) {
+  .sidebar {
+    flex: 0 0 360px;
+    width: 360px;
+    min-width: 320px;
+  }
+}
+
+/* Message timestamp and read ticks spacing */
+.message-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  margin-top: 2px;
+  font-size: 11px;
+}
+
+.ticks {
+  flex-shrink: 0;
+  font-size: 12px;
+  letter-spacing: -1px;
+}
+
+/* Keep mobile layout working */
+@media (max-width: 680px) {
+  .sidebar {
+    flex: 1 1 100%;
+    width: 100%;
+    min-width: 0;
+  }
+}
