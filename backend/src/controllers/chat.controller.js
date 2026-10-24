@@ -89,16 +89,18 @@ const createChat = async (req, res) => {
     try {
 
         // Step 1: Get userId from request body
-        const { userId } = req.body;
+        const { userId } = req.body || {};
 
         // Step 2: Validate userId
-        if (!userId) {
-            return res.status(400).json({
-                success: false,
-                message: "User ID is required"
-            });
-        }
-
+if (
+    typeof userId !== "string" ||
+    !/^[0-9a-fA-F]{24}$/.test(userId)
+) {
+    return res.status(400).json({
+        success: false,
+        message: "Valid user ID is required"
+    });
+}
         // Step 3: Check if target user exists
         const user = await User.findById(userId);
 
@@ -110,7 +112,7 @@ const createChat = async (req, res) => {
         }
 
         // Step 4: Prevent self-chat
-        if (req.user.userId === userId) {
+        if (req.user.userId.toString() === userId.toString()) {
             return res.status(400).json({
                 success: false,
                 message: "You cannot create a chat with yourself"
@@ -121,8 +123,8 @@ const createChat = async (req, res) => {
         const existingChat = await Chat.findOne({
             participants: {
                 $all: [
-                    req.user.userId,
-                    userId
+                    req.user.userId.toString(),
+                    userId.toString()
                 ]
             },
             isGroupChat: false
