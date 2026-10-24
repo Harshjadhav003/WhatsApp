@@ -403,6 +403,7 @@ console.log("APP COMPONENT RENDERED");
   message={message}
   setMessage={setMessage}
   sending={sending}
+  onBack={() => setSelectedId(null)}
 />
 
 
