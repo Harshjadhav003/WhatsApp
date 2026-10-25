@@ -1,4 +1,4 @@
-const User = require("../models/user.model");
+﻿const User = require("../models/user.model");
 const Chat = require("../models/chat.model");
 
 // Get All Chats
@@ -85,23 +85,33 @@ const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 
 // Create Chat
+
 const createChat = async (req, res) => {
     try {
-
-        // Step 1: Get userId from request body
+        // Step 1: Get and validate target user ID
         const { userId } = req.body || {};
 
-        // Step 2: Validate userId
-if (
-    typeof userId !== "string" ||
-    !/^[0-9a-fA-F]{24}$/.test(userId)
-) {
-    return res.status(400).json({
-        success: false,
-        message: "Valid user ID is required"
-    });
-}
-        // Step 3: Check if target user exists
+        if (
+            typeof userId !== "string" ||
+            !/^[0-9a-fA-F]{24}$/.test(userId)
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "Valid user ID is required"
+            });
+        }
+
+        // Step 2: Prevent self-chat
+        const currentUserId = req.user.userId.toString();
+
+        if (currentUserId === userId.toLowerCase()) {
+            return res.status(400).json({
+                success: false,
+                message: "You cannot create a chat with yourself"
+            });
+        }
+
+        // Step 3: Check whether target user exists
         const user = await User.findById(userId);
 
         if (!user) {
@@ -111,27 +121,18 @@ if (
             });
         }
 
-        // Step 4: Prevent self-chat
-        if (req.user.userId.toString() === userId.toString()) {
-            return res.status(400).json({
-                success: false,
-                message: "You cannot create a chat with yourself"
-            });
-        }
+        // Step 4: Generate a consistent key for both user
+        const directChatKey = [
+            currentUserId,
+            userId.toLowerCase()
+        ].sort().join("_");
 
-        // Step 5: Check if chat already exists
+        // Step 5: Find an existing direct chat
         const existingChat = await Chat.findOne({
-            participants: {
-                $all: [
-                    req.user.userId.toString(),
-                    userId.toString()
-                ]
-            },
+            directChatKey,
             isGroupChat: false
-        })
-        .populate("participants", "name email");
+        }).populate("participants", "name email");
 
-        // Step 6: If chat already exists
         if (existingChat) {
             return res.status(200).json({
                 success: true,
@@ -140,28 +141,57 @@ if (
             });
         }
 
-        // Step 7: Create new chat
+        // Step 6: Create the direct chat
         const chat = await Chat.create({
-            participants: [
-                req.user.userId,
-                userId
-            ],
-            isGroupChat: false
+            participants: [currentUserId, userId],
+            isGroupChat: false,
+            directChatKey
         });
 
-        // Step 8: Populate participants
+        // Step 7: Populate participant details
         await chat.populate("participants", "name email");
 
-        // Step 9: Send response
         return res.status(201).json({
             success: true,
             message: "Chat created successfully",
             chat
         });
-
     } catch (err) {
+        // Handle concurrent requests for the same direct chat.
+        if (err.code === 11000) {
+            try {
+                const targetUserId = req.body?.userId;
 
-        console.error(err);
+                if (
+                    typeof targetUserId === "string" &&
+                    /^[0-9a-fA-F]{24}$/.test(targetUserId)
+                ) {
+                    const directChatKey = [
+                        req.user.userId.toString().toLowerCase(),
+                        targetUserId.toLowerCase()
+                    ].sort().join("_");
+
+                    const existingChat = await Chat.findOne({
+                        directChatKey,
+                        isGroupChat: false
+                    }).populate("participants", "name email");
+
+                    if (existingChat) {
+                        return res.status(200).json({
+                            success: true,
+                            message: "Chat already exists",
+                            chat: existingChat
+                        });
+                    }
+                }
+            } catch (lookupError) {
+                console.error(
+                    "Duplicate chat lookup error:",
+                    lookupError.message
+                );
+            }
+        }
+     console.error("Create chat error:", err.message);
 
         return res.status(500).json({
             success: false,
