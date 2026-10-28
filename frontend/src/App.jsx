@@ -7,6 +7,7 @@ import AuthScreen from "./AuthScreen";
 import "./App.css";
 import Avatar from "./components/Avatar";
 import Conversation from "./components/Conversation";
+import VerifyEmail from "./VerifyEmail";
 
 import {
   getUserId,
@@ -18,6 +19,10 @@ const SOCKET_URL = "http://localhost:5000";
 
 
 function App() {
+  if (window.location.pathname === "/verify-email") {
+    return <VerifyEmail />;
+  }
+
   const [token, setToken] = useState(
     () => localStorage.getItem("token")
   );
@@ -408,20 +413,20 @@ console.log("APP COMPONENT RENDERED");
 
 
 
-  <NewChatModal
-    showNewChat={showNewChat}
-    setShowNewChat={setShowNewChat}
-    userSearch={userSearch}
-    setUserSearch={setUserSearch}
-    searchRegisteredUsers={searchRegisteredUsers}
-    searchingUsers={searchingUsers}
-    userSearchError={userSearchError}
-    searchedUsers={searchedUsers}
-    creatingChat={creatingChat}
-    handleCreateChat={handleCreateChat}
-  />
-</main>
- );
+      <NewChatModal
+        showNewChat={showNewChat}
+        setShowNewChat={setShowNewChat}
+        userSearch={userSearch}
+        setUserSearch={setUserSearch}
+        searchRegisteredUsers={searchRegisteredUsers}
+        searchingUsers={searchingUsers}
+        userSearchError={userSearchError}
+        searchedUsers={searchedUsers}
+        creatingChat={creatingChat}
+        handleCreateChat={handleCreateChat}
+      />
+    </main>
+  );
 }
 
 export default App;
