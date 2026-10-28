@@ -2,6 +2,10 @@
 const User = require("../models/user.model");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
+const {
+    sendVerificationEmail
+} = require("../services/email.service");
 
 // Register Controller
 const register = async (req, res) => {
@@ -31,7 +35,10 @@ const register = async (req, res) => {
             });
         }
 
-        if (typeof password !== "string" || password.length < 6) {
+        if (
+            typeof password !== "string" ||
+            password.length < 6
+        ) {
             return res.status(400).json({
                 success: false,
                 message: "Password must be at least 6 characters"
@@ -53,29 +60,146 @@ const register = async (req, res) => {
         // Step 3: Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Step 4: Create user
+        // Step 4: Generate secure verification token
+        const verificationToken =
+            crypto.randomBytes(32).toString("hex");
+
+        const verificationTokenHash = crypto
+            .createHash("sha256")
+            .update(verificationToken)
+            .digest("hex");
+
+        const verificationExpiresAt = new Date(
+            Date.now() + 30 * 60 * 1000
+        );
+
+        // Step 5: Create an unverified account
         const user = await User.create({
             name: normalizedName,
             email: normalizedEmail,
-            password: hashedPassword
+            password: hashedPassword,
+            emailVerified: false,
+            emailVerificationTokenHash: verificationTokenHash,
+            emailVerificationExpiresAt: verificationExpiresAt
         });
+       
+        // Step 6: Build verification link
+        const frontendUrl =
+            process.env.FRONTEND_URL || "http://localhost:5173";
 
-        // Step 5: Success response
+        const verificationUrl =
+            `${frontendUrl}/verify-email?token=${verificationToken}` +
+            `&email=${encodeURIComponent(normalizedEmail)}`;
+
+        // Step 7: Log link locally or send email in production
+        if (process.env.NODE_ENV === "development") {
+            console.log("\n--- LOCAL EMAIL VERIFICATION LINK ---");
+            console.log(verificationUrl);
+            console.log("-------------------------------------\n");
+        } else {
+            try {
+                await sendVerificationEmail({
+                    to: normalizedEmail,
+                    name: normalizedName,
+                    verificationUrl
+                });
+            } catch (emailError) {
+                await user.deleteOne();
+                throw emailError;
+            }
+        }
+
+
+
+        // Step 8: Return registration success
         return res.status(201).json({
             success: true,
-            message: "User Registered Successfully",
+            message: "Account created. Check your email to verify it.",
             user: {
                 _id: user._id,
                 name: user.name,
-                email: user.email
+                email: user.email,
+                emailVerified: user.emailVerified
             }
         });
     } catch (error) {
-        console.error("Register error:", error);
+        console.error("Register error:", error.message);
+
+        if (error.code === 11000) {
+            return res.status(409).json({
+                success: false,
+                message: "User already exists"
+            });
+        }
 
         return res.status(500).json({
             success: false,
-            message: "Internal Server Error"
+            message: "Could not complete registration. Please try again."
+        });
+    }
+};
+
+
+const verifyEmail = async (req, res) => {
+    try {
+        const token =
+            typeof req.query.token === "string"
+                ? req.query.token
+                : "";
+
+        const email =
+            typeof req.query.email === "string"
+                ? req.query.email.trim().toLowerCase()
+                : "";
+
+        if (!token || !email) {
+            return res.status(400).json({
+                success: false,
+                message: "Verification token and email are required."
+            });
+        }
+        
+console.log("Verification diagnostic:", {
+    emailReceived: Boolean(email),
+    tokenReceived: Boolean(token),
+    tokenLength: token.length
+});
+
+
+        const tokenHash = crypto
+            .createHash("sha256")
+            .update(token)
+            .digest("hex");
+
+        const user = await User.findOne({
+            email,
+            emailVerificationTokenHash: tokenHash,
+            emailVerificationExpiresAt: { $gt: new Date() }
+        });
+
+        if (!user) {
+            return res.status(400).json({
+                success: false,
+                message: "Verification link is invalid or expired."
+            });
+        }
+
+        user.emailVerified = true;
+        user.emailVerificationTokenHash = undefined;
+        user.emailVerificationExpiresAt = undefined;
+
+        await user.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "Email verified successfully. You can now log in."
+        });
+    } catch (error) {
+        console.error("Email verification error:", error.message);
+
+        return res.status(500).json({
+            success: false,
+            message: "Could not verify email. Please try again."
         });
     }
 };
@@ -104,13 +228,13 @@ const login = async (req, res) => {
                 message: "Invalid input"
             });
         }
-
         // Step 2: Find user
         const user = await User.findOne({
             email: normalizedEmail
         });
 
         if (!user) {
+            console.log("Login failed: no matching user");
             return res.status(401).json({
                 success: false,
                 message: "Invalid Credentials"
@@ -130,6 +254,17 @@ const login = async (req, res) => {
             });
         }
 
+      // Require email verification before login
+        if (user.emailVerified !== true) {
+            return res.status(403).json({
+                success: false,
+                message: "Please verify your email before logging in."
+            });
+        }
+
+        // Email verification enforcement will be added
+        // after the verification endpoint is implemented.
+
         // Step 4: Generate JWT
         const token = jwt.sign(
             {
@@ -148,7 +283,7 @@ const login = async (req, res) => {
             token
         });
     } catch (error) {
-        console.error("Login error:", error);
+        console.error("Login error:", error.message);
 
         return res.status(500).json({
             success: false,
@@ -158,6 +293,7 @@ const login = async (req, res) => {
 };
 
 module.exports = {
-    register,
-    login
+  register,
+  login,
+  verifyEmail,
 };
