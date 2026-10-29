@@ -159,13 +159,6 @@ const verifyEmail = async (req, res) => {
             });
         }
         
-console.log("Verification diagnostic:", {
-    emailReceived: Boolean(email),
-    tokenReceived: Boolean(token),
-    tokenLength: token.length
-});
-
-
         const tokenHash = crypto
             .createHash("sha256")
             .update(token)
@@ -203,6 +196,82 @@ console.log("Verification diagnostic:", {
         });
     }
 };
+
+
+const resendVerificationEmail = async (req, res) => {
+    try {
+        const email =
+            typeof req.body.email === "string"
+                ? req.body.email.trim().toLowerCase()
+                : "";
+
+        if (!email) {
+            return res.status(400).json({
+                success: false,
+                message: "Email is required."
+            });
+        }
+
+        const user = await User.findOne({ email });
+
+        // Use a generic response to avoid revealing account existence.
+        if (!user || user.emailVerified === true) {
+            return res.status(200).json({
+                success: true,
+                message:
+                    "If the account needs verification, a verification link will be provided."
+            });
+        }
+
+        const verificationToken =
+            crypto.randomBytes(32).toString("hex");
+
+        const verificationTokenHash = crypto
+            .createHash("sha256")
+            .update(verificationToken)
+            .digest("hex");
+
+        user.emailVerificationTokenHash = verificationTokenHash;
+        user.emailVerificationExpiresAt = new Date(
+            Date.now() + 30 * 60 * 1000
+        );
+
+        await user.save();
+
+        const frontendUrl =
+            process.env.FRONTEND_URL || "http://localhost:5173";
+
+        const verificationUrl =
+            `${frontendUrl}/verify-email?token=${verificationToken}` +
+            `&email=${encodeURIComponent(email)}`;
+
+        if (process.env.NODE_ENV === "development") {
+            console.log("\n--- LOCAL EMAIL VERIFICATION LINK ---");
+            console.log(verificationUrl);
+            console.log("-------------------------------------\n");
+        } else {
+            await sendVerificationEmail({
+                to: email,
+                name: user.name,
+                verificationUrl
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message:
+                "If the account needs verification, a verification link will be provided."
+        });
+    } catch (error) {
+        console.error("Resend verification error:", error.message);
+
+        return res.status(500).json({
+            success: false,
+            message: "Could not process the request. Please try again."
+        });
+    }
+};
+
 
 // Login Controller
 const login = async (req, res) => {
@@ -292,8 +361,229 @@ const login = async (req, res) => {
     }
 };
 
+const normalizePhoneNumber = (value) => {
+    if (typeof value !== "string") return "";
+
+    const digits = value.replace(/\D/g, "");
+    const nationalNumber =
+        digits.startsWith("91") && digits.length === 12
+            ? digits.slice(2)
+            : digits;
+
+    if (!/^[6-9]\d{9}$/.test(nationalNumber)) {
+        return "";
+    }
+
+    return `+91${nationalNumber}`;
+};
+
+const requestPhoneOtp = async (req, res) => {
+    try {
+        if (process.env.NODE_ENV !== "development") {
+            return res.status(503).json({
+                success: false,
+                message: "Development OTP is disabled outside development mode."
+            });
+        }
+
+        const phoneNumber = normalizePhoneNumber(req.body.phoneNumber);
+
+        if (!phoneNumber) {
+            return res.status(400).json({
+                success: false,
+                message: "Enter a valid Indian mobile number."
+            });
+        }
+
+        const user = await User.findById(req.user.userId);
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User account not found."
+            });
+        }
+
+        if (user.phoneVerified && user.phoneNumber === phoneNumber) {
+            return res.status(409).json({
+                success: false,
+                message: "This phone number is already verified."
+            });
+        }
+
+        // Prevent another account from claiming this number.
+        const existingUser = await User.findOne({
+            _id: { $ne: user._id },
+            $or: [
+                { phoneNumber },
+                { pendingPhoneNumber: phoneNumber }
+            ]
+        });
+
+        if (existingUser) {
+            return res.status(409).json({
+                success: false,
+                message: "This phone number is already associated with another account."
+            });
+        }
+
+        const now = Date.now();
+        const cooldownMs = 60 * 1000;
+
+        if (
+            user.phoneOtpLastSentAt &&
+            now - user.phoneOtpLastSentAt.getTime() < cooldownMs
+        ) {
+            return res.status(429).json({
+                success: false,
+                message: "Please wait 60 seconds before requesting another OTP."
+            });
+        }
+
+        const otp = crypto.randomInt(100000, 1000000).toString();
+
+        user.pendingPhoneNumber = phoneNumber;
+        user.phoneOtpHash = crypto
+            .createHash("sha256")
+            .update(otp)
+            .digest("hex");
+        user.phoneOtpExpiresAt = new Date(now + 5 * 60 * 1000);
+        user.phoneOtpAttempts = 0;
+        user.phoneOtpLastSentAt = new Date(now);
+
+        await user.save();
+
+        // Development only. Never log OTPs in production.
+        console.log(`[DEV ONLY] Phone OTP for ${phoneNumber}: ${otp}`);
+
+        return res.status(200).json({
+            success: true,
+            message: "Development OTP generated. Check the backend terminal."
+        });
+    } catch (error) {
+        console.error("Request phone OTP error:", error.message);
+
+        if (error.code === 11000) {
+            return res.status(409).json({
+                success: false,
+                message: "This phone number is already in use."
+            });
+        }
+
+        return res.status(500).json({
+            success: false,
+            message: "Could not request OTP."
+        });
+    }
+};
+
+const verifyPhoneOtp = async (req, res) => {
+    try {
+        if (process.env.NODE_ENV !== "development") {
+            return res.status(503).json({
+                success: false,
+                message: "Development OTP is disabled outside development mode."
+            });
+        }
+
+        const otp =
+            typeof req.body.otp === "string"
+                ? req.body.otp.trim()
+                : "";
+
+        if (!/^\d{6}$/.test(otp)) {
+            return res.status(400).json({
+                success: false,
+                message: "Enter a valid 6-digit OTP."
+            });
+        }
+
+        // Verify the OTP against the authenticated account.
+        const user = await User.findById(req.user.userId);
+
+        if (!user || !user.pendingPhoneNumber) {
+            return res.status(400).json({
+                success: false,
+                message: "No pending phone verification found."
+            });
+        }
+
+        if (
+            !user.phoneOtpHash ||
+            !user.phoneOtpExpiresAt ||
+            user.phoneOtpExpiresAt.getTime() <= Date.now() ||
+            user.phoneOtpAttempts >= 5
+        ) {
+            user.phoneOtpHash = undefined;
+            user.phoneOtpExpiresAt = undefined;
+            user.phoneOtpAttempts = 0;
+            await user.save();
+
+            return res.status(400).json({
+                success: false,
+                message: "OTP is invalid, expired, or attempts are exhausted. Request a new OTP."
+            });
+        }
+
+        const submittedHash = crypto
+            .createHash("sha256")
+            .update(otp)
+            .digest("hex");
+
+        if (submittedHash !== user.phoneOtpHash) {
+            user.phoneOtpAttempts += 1;
+
+            if (user.phoneOtpAttempts >= 5) {
+                user.phoneOtpHash = undefined;
+                user.phoneOtpExpiresAt = undefined;
+            }
+
+            await user.save();
+
+            return res.status(400).json({
+                success: false,
+                message: "Invalid OTP."
+            });
+        }
+
+        // Promote the pending number only after successful verification.
+        user.phoneNumber = user.pendingPhoneNumber;
+        user.pendingPhoneNumber = undefined;
+        user.phoneVerified = true;
+        user.phoneOtpHash = undefined;
+        user.phoneOtpExpiresAt = undefined;
+        user.phoneOtpAttempts = 0;
+        user.phoneOtpLastSentAt = undefined;
+
+        await user.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "Phone number verified successfully.",
+            phoneNumber: user.phoneNumber,
+            phoneVerified: user.phoneVerified
+        });
+    } catch (error) {
+        console.error("Verify phone OTP error:", error.message);
+
+        if (error.code === 11000) {
+            return res.status(409).json({
+                success: false,
+                message: "This phone number is already in use."
+            });
+        }
+
+        return res.status(500).json({
+            success: false,
+            message: "Could not verify OTP."
+        });
+    }
+};
 module.exports = {
-  register,
-  login,
-  verifyEmail,
+    register,
+    login,
+    verifyEmail,
+    resendVerificationEmail,
+    requestPhoneOtp,
+    verifyPhoneOtp
 };
