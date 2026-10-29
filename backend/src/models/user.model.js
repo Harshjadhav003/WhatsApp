@@ -26,6 +26,37 @@ const userSchema = new mongoose.Schema(
             type: Date,
             default: undefined
         },
+        pendingPhoneNumber: {
+    type: String,
+    trim: true,
+    default: undefined
+},
+                phoneNumber: {
+            type: String,
+            trim: true,
+            sparse: true,
+            unique: true
+        },
+        phoneVerified: {
+            type: Boolean,
+            default: false
+        },
+        phoneOtpHash: {
+            type: String,
+            default: undefined
+        },
+        phoneOtpExpiresAt: {
+            type: Date,
+            default: undefined
+        },
+        phoneOtpAttempts: {
+            type: Number,
+            default: 0
+        },
+        phoneOtpLastSentAt: {
+            type: Date,
+            default: undefined
+        },
         password: {
             type: String,
             required: true,
