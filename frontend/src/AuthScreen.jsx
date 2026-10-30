@@ -10,19 +10,23 @@ export default function AuthScreen({ onLogin }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendFeedback, setResendFeedback] = useState("");
 
   async function handleSubmit(event) {
     event.preventDefault();
     setError("");
-    if (mode === "register" && name.trim().length < 2) {
-  setError("Name must contain at least 2 characters.");
-  return;
-}
 
-if (password.length < 6) {
-  setError("Password must be at least 6 characters.");
-  return;
-}
+    if (mode === "register" && name.trim().length < 2) {
+      setError("Name must contain at least 2 characters.");
+      return;
+    }
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -63,11 +67,44 @@ if (password.length < 6) {
     }
   }
 
+  async function handleResendVerification() {
+    setResendFeedback("");
+
+    if (!email.trim()) {
+      setResendFeedback("Please enter your email address first.");
+      return;
+    }
+
+    setResendLoading(true);
+
+    try {
+      const response = await api.post("/auth/resend-verification", {
+        email: email.trim(),
+      });
+
+      setResendFeedback(
+        response.data.message ||
+          "If your account needs verification, instructions will be sent."
+      );
+    } catch (err) {
+      setResendFeedback(
+        err.response?.data?.message ||
+          "Could not process the request. Please try again."
+      );
+    } finally {
+      setResendLoading(false);
+    }
+  }
+
   return (
     <main className="auth-page">
       <form className="auth-card" onSubmit={handleSubmit}>
         <div className="auth-brand">WhatsApp</div>
-       <h1>{mode === "login" ? "Welcome back" : "Create your account"}</h1>
+
+        <h1>
+          {mode === "login" ? "Welcome back" : "Create your account"}
+        </h1>
+
         <p>Connect with your people.</p>
 
         {mode === "register" && (
@@ -88,7 +125,10 @@ if (password.length < 6) {
           <input
             type="email"
             value={email}
-            onChange={(event) => setEmail(event.target.value)}
+            onChange={(event) => {
+              setEmail(event.target.value);
+              setResendFeedback("");
+            }}
             placeholder="you@example.com"
             autoComplete="email"
             required
@@ -124,12 +164,34 @@ if (password.length < 6) {
               : "Create account"}
         </button>
 
+        {mode === "login" && (
+          <div className="resend-verification">
+            <button
+              className="auth-switch"
+              type="button"
+              onClick={handleResendVerification}
+              disabled={resendLoading}
+            >
+              {resendLoading
+                ? "Sending..."
+                : "Resend verification email"}
+            </button>
+
+            {resendFeedback && (
+              <p className="auth-feedback" role="status">
+                {resendFeedback}
+              </p>
+            )}
+          </div>
+        )}
+
         <button
           className="auth-switch"
           type="button"
           onClick={() => {
             setMode(mode === "login" ? "register" : "login");
             setError("");
+            setResendFeedback("");
           }}
         >
           {mode === "login"
