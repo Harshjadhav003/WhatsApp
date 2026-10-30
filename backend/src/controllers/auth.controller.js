@@ -579,11 +579,38 @@ const verifyPhoneOtp = async (req, res) => {
         });
     }
 };
+const getCurrentUser = async (req, res) => {
+    try {
+        const user = await User.findById(req.user.userId).select(
+            "name email emailVerified phoneNumber phoneVerified"
+        );
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User account not found."
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            user
+        });
+    } catch (error) {
+        console.error("Get current user error:", error.message);
+
+        return res.status(500).json({
+            success: false,
+            message: "Could not fetch user profile."
+        });
+    }
+};
 module.exports = {
     register,
     login,
     verifyEmail,
     resendVerificationEmail,
     requestPhoneOtp,
-    verifyPhoneOtp
+    verifyPhoneOtp,
+    getCurrentUser
 };
