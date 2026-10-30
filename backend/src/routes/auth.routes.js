@@ -8,6 +8,7 @@ const {
     resendVerificationEmail,
     requestPhoneOtp,
     verifyPhoneOtp,
+     getCurrentUser,
 } = require("../controllers/auth.controller");
 
 const authMiddleware = require("../middlewares/auth.middleware");
@@ -17,6 +18,7 @@ const router = express.Router();
 router.post("/register", register);
 router.post("/login", login);
 router.get("/verify-email", verifyEmail);
+router.get("/me", authMiddleware, getCurrentUser);
 // Phone number verification requires login
 router.post("/phone/request-otp", authMiddleware, requestPhoneOtp);
 router.post("/phone/verify-otp", authMiddleware, verifyPhoneOtp);
