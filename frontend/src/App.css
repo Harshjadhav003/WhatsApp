@@ -951,3 +951,208 @@
     animation: none;
   }
 }
+
+/* ===== Profile Footer ===== */
+
+.sidebar-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-top: 1px solid #e8e8e8;
+  background: #f7f8fa;
+}
+
+.profile-avatar {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #d9fdd3;
+  color: #075e54;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.profile-info {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.profile-info strong {
+  color: #222;
+  font-size: 14px;
+}
+
+.profile-info span {
+  color: #667781;
+  font-size: 12px;
+}
+
+.phone-manage-button {
+  border: none;
+  border-radius: 7px;
+  padding: 8px 11px;
+  background: #00a884;
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s ease;
+}
+
+.phone-manage-button:hover {
+  background: #008f72;
+}
+
+.phone-manage-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ===== Phone Verification Modal ===== */
+
+.phone-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(11, 20, 26, 0.55);
+}
+
+.phone-modal {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  padding: 28px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+}
+
+.phone-modal h2 {
+  margin: 0 0 8px;
+  color: #111b21;
+  font-size: 21px;
+}
+
+.phone-modal p {
+  color: #667781;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.phone-modal-close {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  border: none;
+  background: transparent;
+  color: #667781;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.phone-input-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 20px 0 12px;
+}
+
+.phone-input-group span {
+  padding: 12px;
+  border: 1px solid #d1d7db;
+  border-radius: 7px;
+  color: #333;
+}
+
+.phone-modal input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px;
+  border: 1px solid #d1d7db;
+  border-radius: 7px;
+  outline: none;
+  font-size: 14px;
+}
+
+.phone-modal input:focus {
+  border-color: #00a884;
+  box-shadow: 0 0 0 2px rgba(0, 168, 132, 0.12);
+}
+
+.phone-modal button:not(.phone-modal-close) {
+  cursor: pointer;
+}
+
+.phone-submit-button {
+  width: 100%;
+  margin-top: 12px;
+  padding: 12px;
+  border: none;
+  border-radius: 7px;
+  background: #00a884;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.phone-submit-button:hover {
+  background: #008f72;
+}
+
+.phone-submit-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.phone-feedback {
+  margin-top: 14px;
+  font-size: 13px;
+}
+
+.phone-feedback.success {
+  color: #008f72;
+}
+
+.phone-feedback.error {
+  color: #d93025;
+}
+
+.phone-change-number {
+  display: block;
+  margin: 12px auto 0;
+  border: none;
+  background: transparent;
+  color: #008f72;
+  font-size: 13px;
+}
+
+/* ===== Mobile Responsive ===== */
+
+@media (max-width: 480px) {
+  .phone-modal {
+    padding: 24px 18px;
+  }
+
+  .sidebar-footer {
+    gap: 8px;
+    padding: 12px 10px;
+  }
+
+  .phone-manage-button {
+    padding: 7px 9px;
+    font-size: 11px;
+  }
+}
