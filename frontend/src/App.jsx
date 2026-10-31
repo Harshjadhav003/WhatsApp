@@ -26,22 +26,27 @@ function App() {
   const [token, setToken] = useState(
     () => localStorage.getItem("token")
   );
-  const [chats, setChats] = useState([]);
-  const [selectedId, setSelectedId] = useState(null);
-  const [messages, setMessages] = useState([]);
-  const [search, setSearch] = useState("");
-  const [message, setMessage] = useState("");
-  const [loadingChats, setLoadingChats] = useState(false);
-  const [loadingMessages, setLoadingMessages] = useState(false);
-  const [error, setError] = useState("");
-  const [sending, setSending] = useState(false);
-  const [onlineUsers, setOnlineUsers] = useState(new Set());
-  const [showNewChat, setShowNewChat] = useState(false);
+const [chats, setChats] = useState([]);
+const [selectedId, setSelectedId] = useState(null);
+const [messages, setMessages] = useState([]);
+const [search, setSearch] = useState("");
+const [message, setMessage] = useState("");
+
+const [loadingChats, setLoadingChats] = useState(false);
+const [loadingMessages, setLoadingMessages] = useState(false);
+const [error, setError] = useState("");
+const [sending, setSending] = useState(false);
+const [onlineUsers, setOnlineUsers] = useState(new Set());
+
+const [showNewChat, setShowNewChat] = useState(false);
 const [userSearch, setUserSearch] = useState("");
 const [searchedUsers, setSearchedUsers] = useState([]);
 const [searchingUsers, setSearchingUsers] = useState(false);
 const [creatingChat, setCreatingChat] = useState(false);
 const [userSearchError, setUserSearchError] = useState("");
+
+const [currentUser, setCurrentUser] = useState(null);
+const [loadingProfile, setLoadingProfile] = useState(false);
 
 console.log("APP COMPONENT RENDERED");
 
@@ -177,6 +182,42 @@ console.log("APP COMPONENT RENDERED");
 
     loadChats();
   }, [token, loadChats]);
+
+  useEffect(() => {
+    if (!token) {
+        setCurrentUser(null);
+        return;
+    }
+
+    let cancelled = false;
+
+    const loadCurrentUser = async () => {
+        try {
+            setLoadingProfile(true);
+
+            const response = await api.get("/auth/me");
+
+            if (!cancelled) {
+                setCurrentUser(response.data.user);
+            }
+        } catch (error) {
+            console.error(
+                "Could not load current user:",
+                error.response?.data?.message || error.message
+            );
+        } finally {
+            if (!cancelled) {
+                setLoadingProfile(false);
+            }
+        }
+    };
+
+    loadCurrentUser();
+
+    return () => {
+        cancelled = true;
+    };
+}, [token]);
 
   useEffect(() => {
     if (!token) return;
@@ -392,6 +433,9 @@ console.log("APP COMPONENT RENDERED");
     selectedId={selectedId}
     setSelectedId={setSelectedId}
     onlineUsers={onlineUsers}
+    currentUser={currentUser}
+loadingProfile={loadingProfile}
+setCurrentUser={setCurrentUser}
   />
 
 
