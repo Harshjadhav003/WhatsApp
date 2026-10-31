@@ -57,6 +57,22 @@ const userSchema = new mongoose.Schema(
             type: Date,
             default: undefined
         },
+        phoneLoginOtpHash: {
+    type: String,
+    default: undefined
+},
+phoneLoginOtpExpiresAt: {
+    type: Date,
+    default: undefined
+},
+phoneLoginOtpAttempts: {
+    type: Number,
+    default: 0
+},
+phoneLoginOtpLastSentAt: {
+    type: Date,
+    default: undefined
+},
         password: {
             type: String,
             required: true,
