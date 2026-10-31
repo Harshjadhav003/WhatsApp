@@ -579,6 +579,186 @@ const verifyPhoneOtp = async (req, res) => {
         });
     }
 };
+
+const requestPhoneLoginOtp = async (req, res) => {
+    try {
+        // Development OTP is not allowed in production.
+        if (process.env.NODE_ENV !== "development") {
+            return res.status(503).json({
+                success: false,
+                message: "Phone login OTP is not available yet."
+            });
+        }
+
+        const phoneNumber = normalizePhoneNumber(req.body.phoneNumber);
+
+        if (!phoneNumber) {
+            return res.status(400).json({
+                success: false,
+                message: "Enter a valid Indian mobile number."
+            });
+        }
+
+        // Only verified phone numbers can be used for login.
+        const user = await User.findOne({
+            phoneNumber,
+            phoneVerified: true
+        });
+
+        // Generic response prevents revealing whether an account exists.
+        const genericResponse = {
+            success: true,
+            message: "If an eligible account exists, an OTP has been generated."
+        };
+
+        if (!user) {
+            return res.status(200).json(genericResponse);
+        }
+
+        const now = Date.now();
+        const cooldownMs = 60 * 1000;
+
+        if (
+            user.phoneLoginOtpLastSentAt &&
+            now - user.phoneLoginOtpLastSentAt.getTime() < cooldownMs
+        ) {
+            return res.status(200).json(genericResponse);
+        }
+
+        const otp = crypto.randomInt(100000, 1000000).toString();
+
+        user.phoneLoginOtpHash = crypto
+            .createHash("sha256")
+            .update(otp)
+            .digest("hex");
+
+        user.phoneLoginOtpExpiresAt = new Date(now + 5 * 60 * 1000);
+        user.phoneLoginOtpAttempts = 0;
+        user.phoneLoginOtpLastSentAt = new Date(now);
+
+        await user.save();
+
+        // Development only. A real SMS provider is not integrated yet.
+        console.log(`[DEV ONLY] Phone Login OTP for ${phoneNumber}: ${otp}`);
+
+        return res.status(200).json(genericResponse);
+
+    } catch (error) {
+        console.error("Request phone login OTP error:", error.message);
+
+        return res.status(500).json({
+            success: false,
+            message: "Could not request login OTP."
+        });
+    }
+};
+
+const verifyPhoneLoginOtp = async (req, res) => {
+    try {
+        if (process.env.NODE_ENV !== "development") {
+            return res.status(503).json({
+                success: false,
+                message: "Phone login OTP is not available yet."
+            });
+        }
+
+        const phoneNumber = normalizePhoneNumber(req.body.phoneNumber);
+        const otp =
+            typeof req.body.otp === "string"
+                ? req.body.otp.trim()
+                : "";
+
+        if (!phoneNumber || !/^\d{6}$/.test(otp)) {
+            return res.status(400).json({
+                success: false,
+                message: "Enter a valid phone number and 6-digit OTP."
+            });
+        }
+
+        const user = await User.findOne({
+            phoneNumber,
+            phoneVerified: true
+        });
+
+        if (!user || !user.phoneLoginOtpHash) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid or expired OTP."
+            });
+        }
+
+        if (
+            !user.phoneLoginOtpExpiresAt ||
+            user.phoneLoginOtpExpiresAt.getTime() <= Date.now() ||
+            user.phoneLoginOtpAttempts >= 5
+        ) {
+            user.phoneLoginOtpHash = undefined;
+            user.phoneLoginOtpExpiresAt = undefined;
+            user.phoneLoginOtpAttempts = 0;
+            await user.save();
+
+            return res.status(400).json({
+                success: false,
+                message: "OTP expired or attempts exhausted. Request a new OTP."
+            });
+        }
+
+        const submittedHash = crypto
+            .createHash("sha256")
+            .update(otp)
+            .digest("hex");
+
+        const submittedHashBuffer = Buffer.from(submittedHash, "hex");
+const storedHashBuffer = Buffer.from(user.phoneLoginOtpHash, "hex");
+
+if (
+    submittedHashBuffer.length !== storedHashBuffer.length ||
+    !crypto.timingSafeEqual(submittedHashBuffer, storedHashBuffer)
+) {
+            user.phoneLoginOtpAttempts += 1;
+
+            if (user.phoneLoginOtpAttempts >= 5) {
+                user.phoneLoginOtpHash = undefined;
+                user.phoneLoginOtpExpiresAt = undefined;
+            }
+
+            await user.save();
+
+            return res.status(400).json({
+                success: false,
+                message: "Invalid or expired OTP."
+            });
+        }
+
+        // OTP is valid. Clear it before issuing the login token.
+        user.phoneLoginOtpHash = undefined;
+        user.phoneLoginOtpExpiresAt = undefined;
+        user.phoneLoginOtpAttempts = 0;
+
+        await user.save();
+
+        const token = jwt.sign(
+            { userId: user._id },
+            process.env.JWT_SECRET,
+            { expiresIn: "7d" }
+        );
+
+        return res.status(200).json({
+            success: true,
+            message: "Phone login successful.",
+            token
+        });
+
+    } catch (error) {
+        console.error("Verify phone login OTP error:", error.message);
+
+        return res.status(500).json({
+            success: false,
+            message: "Could not verify login OTP."
+        });
+    }
+};
+
 const getCurrentUser = async (req, res) => {
     try {
         const user = await User.findById(req.user.userId).select(
@@ -612,5 +792,7 @@ module.exports = {
     resendVerificationEmail,
     requestPhoneOtp,
     verifyPhoneOtp,
+    requestPhoneLoginOtp,
+    verifyPhoneLoginOtp,
     getCurrentUser
 };
