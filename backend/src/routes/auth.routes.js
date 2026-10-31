@@ -1,4 +1,3 @@
-
 const express = require("express");
 
 const {
@@ -9,6 +8,8 @@ const {
     requestPhoneOtp,
     verifyPhoneOtp,
      getCurrentUser,
+     requestPhoneLoginOtp,
+     verifyPhoneLoginOtp,
 } = require("../controllers/auth.controller");
 
 const authMiddleware = require("../middlewares/auth.middleware");
@@ -23,5 +24,9 @@ router.get("/me", authMiddleware, getCurrentUser);
 router.post("/phone/request-otp", authMiddleware, requestPhoneOtp);
 router.post("/phone/verify-otp", authMiddleware, verifyPhoneOtp);
 router.post("/resend-verification", resendVerificationEmail);
+
+// Public phone login using OTP
+router.post("/phone-login/request-otp", requestPhoneLoginOtp);
+router.post("/phone-login/verify-otp", verifyPhoneLoginOtp);
 
 module.exports = router;
