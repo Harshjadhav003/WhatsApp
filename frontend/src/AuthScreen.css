@@ -87,3 +87,33 @@
   color: #ff9b9b;
   overflow-wrap: anywhere;
 }
+.login-method-toggle {
+  display: flex;
+  gap: 10px;
+  padding: 4px;
+  border-radius: 10px;
+  background: #101a20;
+}
+
+.auth-method {
+  flex: 1;
+  padding: 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #aebac1;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.auth-method.active {
+  background: #25d366;
+  color: #102018;
+}
+
+.auth-info {
+  margin: 0;
+  color: #53d98a;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
