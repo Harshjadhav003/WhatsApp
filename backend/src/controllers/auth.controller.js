@@ -3,6 +3,7 @@ const User = require("../models/user.model");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
+const admin = require("../config/firebase");
 const {
     sendVerificationEmail
 } = require("../services/email.service");
@@ -375,6 +376,83 @@ const normalizePhoneNumber = (value) => {
     }
 
     return `+91${nationalNumber}`;
+};
+// Firebase Phone Login Controller
+const firebasePhoneLogin = async (req, res) => {
+    try {
+        const { idToken } = req.body;
+
+        if (!idToken || typeof idToken !== "string") {
+            return res.status(400).json({
+                success: false,
+                message: "Firebase ID token is required."
+            });
+        }
+
+        // Verify Firebase ID token on the backend
+        const decodedToken = await admin.auth().verifyIdToken(idToken);
+
+        if (!decodedToken.phone_number) {
+            return res.status(401).json({
+                success: false,
+                message: "Verified phone number not found in Firebase token."
+            });
+        }
+
+        const phoneNumber = normalizePhoneNumber(decodedToken.phone_number);
+
+        if (!phoneNumber) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid phone number."
+            });
+        }
+
+        // Find an existing verified WhatsApp account
+        const user = await User.findOne({
+            phoneNumber,
+            phoneVerified: true
+        });
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "No verified WhatsApp account found for this phone number."
+            });
+        }
+
+        // Generate the existing WhatsApp JWT
+        const token = jwt.sign(
+            { userId: user._id },
+            process.env.JWT_SECRET,
+            { expiresIn: "7d" }
+        );
+
+        return res.status(200).json({
+            success: true,
+            message: "Phone login successful.",
+            token
+        });
+
+    } catch (error) {
+        console.error("Firebase phone login error:", error.message);
+
+        if (
+            error.code === "auth/id-token-expired" ||
+            error.code === "auth/argument-error" ||
+            error.code === "auth/invalid-id-token"
+        ) {
+            return res.status(401).json({
+                success: false,
+                message: "Invalid or expired Firebase ID token."
+            });
+        }
+
+        return res.status(500).json({
+            success: false,
+            message: "Phone login failed. Please try again."
+        });
+    }
 };
 
 const requestPhoneOtp = async (req, res) => {
@@ -794,5 +872,6 @@ module.exports = {
     verifyPhoneOtp,
     requestPhoneLoginOtp,
     verifyPhoneLoginOtp,
-    getCurrentUser
+    getCurrentUser,
+    firebasePhoneLogin
 };
