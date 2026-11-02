@@ -1,5 +1,9 @@
-
-import { useState } from "react";
+import { useRef, useState } from "react";
+import {
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+} from "firebase/auth";
+import { auth } from "./firebase";
 import api from "./services/api";
 import "./AuthScreen.css";
 
@@ -17,14 +21,37 @@ export default function AuthScreen({ onLogin }) {
   const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [otpFeedback, setOtpFeedback] = useState("");
+  const recaptchaVerifier = useRef(null);
+  const confirmationResult = useRef(null);
 
-  
-  async function handleRequestPhoneOtp(event) {
+  function setupRecaptcha() {
+  if (recaptchaVerifier.current) {
+    return recaptchaVerifier.current;
+  }
+
+  recaptchaVerifier.current = new RecaptchaVerifier(auth, "recaptcha-container", {
+    size: "invisible",
+    callback: () => {
+      console.log("reCAPTCHA solved");
+    },
+    "expired-callback": () => {
+      recaptchaVerifier.current?.clear();
+      recaptchaVerifier.current = null;
+      setError("reCAPTCHA expired. Please try again.");
+    },
+  });
+
+  return recaptchaVerifier.current;
+}
+
+async function handleRequestPhoneOtp(event) {
   event.preventDefault();
   setError("");
   setOtpFeedback("");
 
-  if (!/^[6-9]\d{9}$/.test(phoneNumber.trim())) {
+  const mobile = phoneNumber.trim();
+
+  if (!/^[6-9]\d{9}$/.test(mobile)) {
     setError("Enter a valid 10-digit Indian mobile number.");
     return;
   }
@@ -32,19 +59,27 @@ export default function AuthScreen({ onLogin }) {
   setLoading(true);
 
   try {
-    const response = await api.post("/auth/phone-login/request-otp", {
-      phoneNumber: phoneNumber.trim(),
-    });
+    const appVerifier = setupRecaptcha();
+
+    const result = await signInWithPhoneNumber(
+      auth,
+      `+91${mobile}`,
+      appVerifier
+    );
+
+    confirmationResult.current = result;
 
     setOtpSent(true);
     setOtp("");
-    setOtpFeedback(
-      response.data.message || "OTP request processed."
-    );
+    setOtpFeedback("OTP sent. Enter your Firebase test code.");
   } catch (err) {
+    console.error("Firebase OTP request error:", err);
+
+    recaptchaVerifier.current?.clear();
+    recaptchaVerifier.current = null;
+
     setError(
-      err.response?.data?.message ||
-        "Could not request OTP. Please try again."
+      err.message || "Could not request OTP. Please try again."
     );
   } finally {
     setLoading(false);
@@ -59,27 +94,31 @@ async function handleVerifyPhoneOtp(event) {
     return;
   }
 
+  if (!confirmationResult.current) {
+    setError("Please request an OTP first.");
+    return;
+  }
+
   setLoading(true);
 
-  try {
-    const response = await api.post("/auth/phone-login/verify-otp", {
-      phoneNumber: phoneNumber.trim(),
-      otp: otp.trim(),
+ try {
+    const result = await confirmationResult.current.confirm(otp.trim());
+
+    const firebaseIdToken = await result.user.getIdToken();
+
+    const response = await api.post("/auth/firebase-phone-login", {
+        idToken: firebaseIdToken
     });
 
-    const token = response.data.token;
+    localStorage.setItem("token", response.data.token);
 
-    if (!token) {
-      throw new Error("Login token was not received.");
-    }
-
-    localStorage.setItem("token", token);
-    onLogin(token);
+    onLogin(response.data.token);
+    // Backend authentication will be connected in the next step.
   } catch (err) {
+    console.error("Firebase OTP verification error:", err);
+
     setError(
-      err.response?.data?.message ||
-        err.message ||
-        "OTP verification failed."
+      err.message || "OTP verification failed. Please try again."
     );
   } finally {
     setLoading(false);
@@ -267,9 +306,11 @@ return (
       )}
 
       {mode === "login" && loginMethod === "phone" && (
-        <>
-          <label>
-            Mobile number
+  <>
+    <div id="recaptcha-container"></div>
+
+    <label>
+      Mobile number
             <input
               type="tel"
               value={phoneNumber}
